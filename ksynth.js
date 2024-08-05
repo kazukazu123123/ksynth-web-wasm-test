@@ -1,4 +1,8 @@
 class KSynth extends EventTarget {
+    static registry = new FinalizationRegistry((heldValue) => {
+        Module._ksynth_free(heldValue);
+    });
+
     constructor(ksmpArrayBuffer) {
         super();
         this.ksynthInstance = null;
@@ -38,8 +42,12 @@ class KSynth extends EventTarget {
                 return;
             }
 
+            KSynth.registry.register(this, this.ksynthInstance, this);
+
             Module._free(this.sampleDataPtr);
+            this.sampleDataPtr = undefined
             Module._free(this.filePathPtr);
+            this.filePathPtr = undefined
 
             this.isInitialized = true;
 
@@ -71,13 +79,7 @@ class KSynth extends EventTarget {
 
         const buffer = new Float32Array(Module.HEAPF32.buffer, bufferPtr, this.bufferSize);
 
-        if (this.audioBuffers.length > 4) {
-            this.audioBuffers.shift();
-        }
-        //this.audioBuffers.push(buffer);
-
-        // Send audio data as a custom event
-        //this.dispatchEvent(new CustomEvent('audioData', { detail: { buffer } }));
+        this.dispatchEvent(new CustomEvent('audioData', { detail: { buffer } }));
 
         Module._ksynth_buffer_free(bufferPtr);
     }
@@ -110,18 +112,20 @@ class KSynth extends EventTarget {
     }
 
     destroy() {
-        if (this.ksynthInstance !== null) {
+        if (this.isInitialized && this.ksynthInstance !== null) {
             clearInterval(this.bufferInterval)
 
             // Free the KSynth instance
-            console.log("before free (this.ksynthInstance): ", this.ksynthInstance)
+            KSynth.registry.unregister(this);
             Module._ksynth_free(this.ksynthInstance);
-            console.log("after free (this.ksynthInstance): ", this.ksynthInstance)
             this.ksynthInstance = null;
 
             // Clear any remaining buffers and MIDI events
             this.audioBuffers.splice(0);
             this.midiEventQueue.splice(0);
+            this.filePathPtr = undefined
+
+            this.ksmpArrayBuffer = new ArrayBuffer(0)
 
             this.isInitialized = false;
         }
