@@ -63,18 +63,20 @@ function generateAndStoreBuffer() {
 
     processMidiEvents();
 
-    const bufferPtr = Module._ksynth_generate_buffer(ksynthInstance, bufferSize);
+    if (audioBuffers.length < bufferSize * 4) {
+        const bufferPtr = Module._ksynth_generate_buffer(ksynthInstance, bufferSize);
 
-    if (bufferPtr === null) {
-        console.error("Failed to generate buffer. bufferPtr is null.");
-        return;
+        if (bufferPtr === null) {
+            console.error("Failed to generate buffer. bufferPtr is null.");
+            return;
+        }
+
+        const buffer = new Float32Array(Module.HEAPF32.buffer, bufferPtr, bufferSize);
+
+        audioBuffers.push(...buffer);
+
+        Module._ksynth_buffer_free(bufferPtr);
     }
-
-    const buffer = new Float32Array(Module.HEAPF32.buffer, bufferPtr, bufferSize);
-
-    if (audioBuffers.length < bufferSize * 4) audioBuffers.push(...buffer);
-
-    Module._ksynth_buffer_free(bufferPtr);
 }
 
 function processMidiEvents() {
@@ -124,7 +126,7 @@ self.onmessage = function (e) {
             initializeKSynth(message.sampleData);
             break;
         case 'midiEvent':
-             if (isInitialized) midiEventQueue.push(message.event);
+            if (isInitialized) midiEventQueue.push(message.event);
             break;
         case 'getAudioData':
             if (audioBuffers.length > bufferSize) {

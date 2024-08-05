@@ -10,23 +10,26 @@ class PCMF32Player {
   }
 
   play(float32Array) {
-      const numSamples = float32Array.length;
-      const numFrames = numSamples / this.channels;
+    const numChannels = this.channels;
+    const numFrames = float32Array.length / numChannels;
 
-      // Create a new buffer to hold the float32Array data
-      const newBuffer = this.audioContext.createBuffer(this.channels, numFrames, this.sampleRate);
+    const audioBuffer = new AudioBuffer({
+        length: numFrames,
+        numberOfChannels: numChannels,
+        sampleRate: this.sampleRate
+    });
 
-      for (let channel = 0; channel < this.channels; channel++) {
-          const channelData = newBuffer.getChannelData(channel);
+    for (let channel = 0; channel < numChannels; channel++) {
+        const channelData = audioBuffer.getChannelData(channel);
 
-          for (let i = 0; i < numFrames; i++) {
-              channelData[i] = float32Array[i * this.channels + channel];
-          }
-      }
+        for (let i = 0; i < numFrames; i++) {
+            channelData[i] = float32Array[i * numChannels + channel];
+        }
+    }
 
       // Create a buffer source and connect it to the audio context
       this.source = this.audioContext.createBufferSource();
-      this.source.buffer = newBuffer;
+      this.source.buffer = audioBuffer;
       this.source.connect(this.audioContext.destination);
 
       // Set up the onended event listener

@@ -1,5 +1,8 @@
 document.addEventListener('DOMContentLoaded', () => {
   const ksynthWorker = new Worker('ksynth/ksynthWorker.js');
+
+  window.ksynthWorker = ksynthWorker;
+
   const limiter = new Limiter();
   const player = new PCMF32Player(960, 2);
 
