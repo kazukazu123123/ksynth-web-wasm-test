@@ -124,7 +124,7 @@ self.onmessage = function (e) {
             initializeKSynth(message.sampleData);
             break;
         case 'midiEvent':
-            midiEventQueue.push(message.event);
+             if (isInitialized) midiEventQueue.push(message.event);
             break;
         case 'getAudioData':
             if (audioBuffers.length > bufferSize) {
