@@ -1,31 +1,45 @@
 document.addEventListener('DOMContentLoaded', () => {
-  let ksynth = null;
+  const ksynthWorker = new Worker('ksynth/ksynthWorker.js');
+  const limiter = new Limiter();
   const player = new PCMF32Player(960, 2);
+
+  player.onEnded(() => {
+    ksynthWorker.postMessage({ type: 'getAudioData' });
+  });
+
+  ksynthWorker.onmessage = function (e) {
+    const { type } = e.data;
+
+    switch (type) {
+        case 'initialized':
+            console.log('KSynth initialized');
+            ksynthWorker.postMessage({ type: 'getAudioData' });
+            break;
+        case 'audioBuffer':
+            const buffer = e.data.buffer;
+            if (buffer.length === 0) return;
+
+            for (let i = 0; i < buffer.length; i++) {
+              buffer[i] = limiter.limit(buffer[i]);
+            }
+
+            // Play buffer
+            player.play(buffer);
+            break;
+        case 'error':
+            console.error('Error from worker:', e.data.error);
+            break;
+        default:
+            console.error('Unknown message type:', type);
+      }
+  };
 
   const handleFileSelect = async (event) => {
     const file = event.target.files[0];
     if (file) {
       const arrayBuffer = await file.arrayBuffer();
 
-      if (ksynth) {
-        ksynth = null;
-      }
-
-      ksynth = new KSynth(arrayBuffer);
-
-      ksynth.addEventListener('audioData', (event) => {
-        if (!ksynth) return; // Check if ksynth is still valid
-        const buffer = event.detail.buffer;
-        //console.log(buffer);
-
-        // Convert buffer to swapped byte order if needed
-        // const swappedBuffer = swapByteOrder(new Float32Array(buffer));
-
-        // Play buffer
-        player.play(buffer);
-      });
-
-      window.ksynth = ksynth; // Expose ksynth to global scope if necessary
+      ksynthWorker.postMessage({ type: 'initialize', sampleData: arrayBuffer });
     }
   };
 
@@ -39,37 +53,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (NoteONButton) {
     NoteONButton.addEventListener('click', () => {
-      if (ksynth) {
-        ksynth.addMidiEvent({ type: 'noteOn', channel: 1, note: 60, velocity: 127 });
-      }
+      ksynthWorker.postMessage({ type: 'midiEvent', event: { type: 'noteOn', channel: 1, note: 60, velocity: 127 } });
     });
   }
 
   if (NoteOFFButton) {
     NoteOFFButton.addEventListener('click', () => {
-      if (ksynth) {
-        ksynth.addMidiEvent({ type: 'noteOff', channel: 1, note: 60 });
-      }
+      ksynthWorker.postMessage({ type: 'midiEvent', event: { type: 'noteOff', channel: 1, note: 60 } });
     });
   }
 });
-
-// Optional: Function to swap byte order (if needed)
-function swapByteOrder(floatArray) {
-  const buffer = floatArray.buffer;
-  const view = new DataView(buffer);
-  const length = floatArray.length;
-
-  // Create a new Float32Array to hold the swapped bytes
-  const swappedArray = new Float32Array(length);
-
-  for (let i = 0; i < length; i++) {
-    // Read the float value in the original endianness
-    const value = view.getFloat32(i * 4, true); // true for little-endian
-
-    // Write the float value in the swapped endianness
-    view.setFloat32(i * 4, value, false); // false for big-endian
-  }
-
-  return swappedArray;
-}

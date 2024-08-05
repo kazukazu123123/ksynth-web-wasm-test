@@ -6,6 +6,7 @@ class PCMF32Player {
       this.sampleRate = this.audioContext.sampleRate;
       this.buffer = this.audioContext.createBuffer(this.channels, this.bufferSize, this.sampleRate);
       this.source = null;
+      this.onEndedCallback = null;
   }
 
   play(float32Array) {
@@ -28,8 +29,19 @@ class PCMF32Player {
       this.source.buffer = newBuffer;
       this.source.connect(this.audioContext.destination);
 
+      // Set up the onended event listener
+      this.source.onended = () => {
+          if (this.onEndedCallback) {
+              this.onEndedCallback();
+          }
+      };
+
       // Start playback
       this.source.start();
+  }
+
+  onEnded(callback) {
+      this.onEndedCallback = callback;
   }
 }
 
